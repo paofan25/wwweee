@@ -16,26 +16,20 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// 连接MongoDB
-const connectDB = async () => {
-  try {
-    const uri = process.env.MONGODB_URI;
-    if (!uri) {
-      console.error('未设置MONGODB_URI环境变量');
-      return;
-    }
-
-    await mongoose.connect(uri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
-    console.log('MongoDB数据库连接成功');
-  } catch (error) {
-    console.error('数据库连接失败:', error);
-  }
-};
-
-connectDB();
+// 调试路由 - 显示请求信息
+app.get('/api/debug-request', (req, res) => {
+  res.json({
+    method: req.method,
+    url: req.url,
+    path: req.path,
+    params: req.params,
+    query: req.query,
+    headers: req.headers,
+    serverTime: new Date().toISOString(),
+    vercelEnv: process.env.VERCEL_ENV || '未设置',
+    nodeEnv: process.env.NODE_ENV || '未设置'
+  });
+});
 
 // 测试路由
 app.get('/api/test', (req, res) => {
@@ -55,6 +49,30 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// 连接MongoDB
+const connectDB = async () => {
+  try {
+    const uri = process.env.MONGODB_URI;
+    if (!uri) {
+      console.error('未设置MONGODB_URI环境变量');
+      return;
+    }
+
+    await mongoose.connect(uri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+    console.log('MongoDB数据库连接成功');
+  } catch (error) {
+    console.error('数据库连接失败:', error);
+  }
+};
+
+// 仅在需要数据库功能时连接
+if (process.env.MONGODB_URI) {
+  connectDB();
+}
+
 // 用户模型
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
@@ -67,11 +85,18 @@ const userSchema = new mongoose.Schema({
   purchasedSkins: { type: [String], default: ['default'] }
 });
 
+// 条件性创建模型，避免模型重复定义错误
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 // 创建默认管理员账户
 const createAdminUser = async () => {
   try {
+    // 如果没有连接数据库，跳过此步骤
+    if (mongoose.connection.readyState !== 1) {
+      console.log('数据库未连接，跳过创建管理员账户');
+      return;
+    }
+    
     const adminExists = await User.findOne({ username: 'admin' });
     if (!adminExists) {
       const hashedPassword = await bcrypt.hash('admin123', 10);
@@ -91,7 +116,10 @@ const createAdminUser = async () => {
   }
 };
 
-createAdminUser();
+// 仅在数据库连接成功时创建管理员账户
+if (mongoose.connection.readyState === 1) {
+  createAdminUser();
+}
 
 // 认证中间件
 const auth = (req, res, next) => {
@@ -189,68 +217,72 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.get('/api/auth/me', auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId);
-    if (!user) {
-      return res.status(404).json({ error: '用户不存在' });
-    }
-
-    res.json({
-      _id: user._id,
-      username: user.username,
-      isAdmin: user.isAdmin,
-      wallet: user.wallet,
-      avatar: user.avatar,
-      activeSkin: user.activeSkin,
-      purchasedSkins: user.purchasedSkins
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message || '获取用户信息失败' });
-  }
-});
-
 app.get('/api/auth/debug', async (req, res) => {
   try {
-    const dbStatus = mongoose.connection.readyState;
+    // 处理可能的未连接数据库情况
+    const dbStatus = mongoose.connection ? mongoose.connection.readyState : -1;
     const dbStatusText = dbStatus === 0 ? '已断开' :
                         dbStatus === 1 ? '已连接' :
                         dbStatus === 2 ? '正在连接' :
-                        dbStatus === 3 ? '正在断开' : '未知状态';
+                        dbStatus === 3 ? '正在断开' : 
+                        dbStatus === -1 ? '未初始化连接' : '未知状态';
+    
+    // 尝试获取用户数量，如果数据库连接有问题则返回-1
+    let usersCount = -1;
+    try {
+      if (mongoose.connection && mongoose.connection.readyState === 1) {
+        usersCount = await User.countDocuments();
+      }
+    } catch (e) {
+      console.error('获取用户数量失败:', e);
+    }
     
     res.json({
       serverTime: new Date().toISOString(),
       databaseStatus: {
         connectionState: dbStatus,
         connectionStateText: dbStatusText,
-        usersCount: await User.countDocuments()
+        usersCount: usersCount
       },
       environment: {
         nodeEnv: process.env.NODE_ENV || '未设置',
+        vercelEnv: process.env.VERCEL_ENV || '未设置',
         mongoDbUri: process.env.MONGODB_URI ? '已设置' : '未设置',
         jwtSecret: process.env.JWT_SECRET ? '已设置' : '未设置'
+      },
+      serverInfo: {
+        platform: process.platform,
+        nodeVersion: process.version,
+        uptime: process.uptime()
       }
     });
   } catch (error) {
-    res.status(500).json({ error: '调试信息获取失败', message: error.message });
+    console.error('调试信息获取失败:', error);
+    res.status(500).json({ 
+      error: '调试信息获取失败', 
+      message: error.message,
+      stack: process.env.NODE_ENV === 'production' ? null : error.stack
+    });
   }
 });
 
 // 添加前端路由支持
-if (process.env.NODE_ENV === 'production') {
-  // 提供前端静态文件
-  const frontendPath = path.join(__dirname, '../frontend/build');
-  app.use(express.static(frontendPath));
-  
-  // 处理所有非API路由请求，返回前端页面
-  app.get('*', (req, res, next) => {
-    // 如果是API请求，跳过处理
-    if (req.url.startsWith('/api/')) {
-      return next();
-    }
-    res.sendFile(path.join(frontendPath, 'index.html'));
-  });
-}
+// 首先声明静态文件目录
+const frontendPath = path.resolve(__dirname, '../frontend/build');
+console.log('前端静态文件路径:', frontendPath);
+
+// 提供静态文件
+app.use(express.static(frontendPath));
+
+// 所有非API路由返回index.html
+app.get('*', (req, res, next) => {
+  // 跳过API请求
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+  console.log('返回前端页面,请求路径:', req.path);
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
 
 // 错误处理中间件
 app.use((err, req, res, next) => {

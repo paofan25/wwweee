@@ -11,6 +11,17 @@ echo "=== 检查环境 ==="
 node -v
 npm -v
 
+# 安装API依赖
+echo "=== 安装API依赖 ==="
+if [ -f "api/package.json" ]; then
+  echo "安装API服务器依赖..."
+  cd api
+  npm install
+  cd ..
+else
+  echo "警告: API目录中没有package.json"
+fi
+
 # 前端构建
 echo "=== 前端构建 ==="
 if [ -d "frontend/src" ]; then
@@ -61,6 +72,10 @@ else
 EOF
 fi
 
+# 显示文件内容
+echo "=== 构建输出结构 ==="
+ls -la
+
 echo "=== 构建完成 ==="
 echo "前端文件位置: $(pwd)/frontend/build"
 echo "API文件位置: $(pwd)/api"
@@ -84,5 +99,9 @@ if [ -f "vercel.json" ]; then
 else
   echo "❌ vercel.json配置文件不存在"
 fi
+
+# 检查所有文件权限
+echo "=== 检查文件权限 ==="
+chmod -R 755 .
 
 echo "=== 构建脚本执行完成 ===" 
