@@ -1,10 +1,10 @@
 {
   "name": "funarcade",
   "version": "1.0.0",
+  "private": true,
   "scripts": {
     "start": "node api/server.js",
-    "build": "cd frontend && npm install && npm run build",
-    "dev": "concurrently \"node api/server.js\" \"cd frontend && npm run start\""
+    "build": "cd frontend && npm install && npm run build"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -12,9 +12,9 @@
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.0",
-    "mongoose": "^7.0.3"
+    "mongoose": "^6.10.0"
   },
-  "devDependencies": {
-    "concurrently": "^7.6.0"
+  "engines": {
+    "node": ">=14.0.0"
   }
 }

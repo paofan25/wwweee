@@ -10,7 +10,7 @@ const app = express();
 
 // 中间件
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'https://funarcade.vercel.app',
+  origin: '*',
   credentials: true
 }));
 app.use(express.json());
@@ -24,7 +24,10 @@ const connectDB = async () => {
       return;
     }
 
-    await mongoose.connect(uri);
+    await mongoose.connect(uri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
     console.log('MongoDB数据库连接成功');
   } catch (error) {
     console.error('数据库连接失败:', error);
@@ -38,25 +41,24 @@ app.get('/api/test', (req, res) => {
   res.json({ message: 'API正常工作!' });
 });
 
-// 导入模型
-let User;
-try {
-  User = mongoose.model('User');
-} catch (e) {
-  // 如果模型未定义，创建模型
-  const userSchema = new mongoose.Schema({
-    username: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
-    isAdmin: { type: Boolean, default: false },
-    createdAt: { type: Date, default: Date.now },
-    wallet: { type: Number, default: 0 },
-    avatar: { type: String, default: '/avatars/default.png' },
-    activeSkin: { type: String, default: 'default' },
-    purchasedSkins: { type: [String], default: ['default'] }
-  });
+// 健康检查路由
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', serverTime: new Date().toISOString() });
+});
 
-  User = mongoose.model('User', userSchema);
-}
+// 用户模型
+const userSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  isAdmin: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now },
+  wallet: { type: Number, default: 0 },
+  avatar: { type: String, default: '/avatars/default.png' },
+  activeSkin: { type: String, default: 'default' },
+  purchasedSkins: { type: [String], default: ['default'] }
+});
+
+const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 // 创建默认管理员账户
 const createAdminUser = async () => {
@@ -180,10 +182,6 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/auth/me', auth, async (req, res) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: '用户未认证' });
-    }
-
     const user = await User.findById(req.user.userId);
     if (!user) {
       return res.status(404).json({ error: '用户不存在' });
@@ -221,8 +219,7 @@ app.get('/api/auth/debug', async (req, res) => {
       environment: {
         nodeEnv: process.env.NODE_ENV || '未设置',
         mongoDbUri: process.env.MONGODB_URI ? '已设置' : '未设置',
-        jwtSecret: process.env.JWT_SECRET ? '已设置' : '未设置',
-        clientUrl: process.env.CLIENT_URL || '未设置'
+        jwtSecret: process.env.JWT_SECRET ? '已设置' : '未设置'
       }
     });
   } catch (error) {
@@ -230,5 +227,5 @@ app.get('/api/auth/debug', async (req, res) => {
   }
 });
 
-// 导出函数作为Vercel Serverless Function
+// 用于Vercel Serverless Functions
 module.exports = app; 
