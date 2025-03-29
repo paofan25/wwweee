@@ -5,13 +5,11 @@
     { "src": "frontend/build/**", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "api/server.js" },
+    { "src": "/api/(.*)", "dest": "/api/server.js" },
     { "src": "/(.*\\.(js|css|png|jpg|jpeg|svg|ico))", "dest": "/frontend/build/$1" },
     { "src": "/(.*)", "dest": "/frontend/build/index.html" }
   ],
   "env": {
-    "MONGODB_URI": "mongodb+srv://alivecn2:Wt0RnYoFJTev6UQy@cluster0.8mvnk04.mongodb.net/appdb?retryWrites=true&w=majority",
-    "JWT_SECRET": "Wt0RnYoFJTev6UQy",
     "NODE_ENV": "production"
   }
 } 

@@ -7,8 +7,7 @@
     "build": "bash build.sh",
     "start": "node api/server.js",
     "dev": "cross-env NODE_ENV=development nodemon api/server.js",
-    "test": "node test-deployment.js http://localhost:3000",
-    "deploy": "npm run build && vercel --prod"
+    "test": "node test-deployment.js http://localhost:3000"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
