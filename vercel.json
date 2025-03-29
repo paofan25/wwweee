@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "backend/dist",
+  "functions": {
+    "backend/dist/server.js": {
+      "memory": 1024
+    }
+  },
+  "routes": [
+    { "src": "/api/(.*)", "dest": "backend/dist/server.js" },
+    { "src": "/(.*)", "dest": "frontend/build/$1", "continue": true }
+  ],
+  "env": {
+    "MONGODB_URI": "mongodb+srv://alivecn2:Wt0RnYoFJTev6UQy@cluster0.8mvnk04.mongodb.net/appdb?retryWrites=true&w=majority",
+    "JWT_SECRET": "Wt0RnYoFJTev6UQy",
+    "NODE_ENV": "production",
+    "CLIENT_URL": "https://funarcade.vercel.app"
+  }
+} 
